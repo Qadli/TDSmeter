@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HydroSmart | TDS Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #050505; color: white; overflow-x: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .gradient-text { background: linear-gradient(to right, #38bdf8, #a855f7); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        .purple-glow { box-shadow: 0 0 50px -10px rgba(168, 85, 247, 0.3); }
+        .blue-glow { box-shadow: 0 0 30px -5px rgba(56, 189, 248, 0.4); }
+        
+        input, select { background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; outline: none; transition: all 0.3s; }
+        input:focus { border-color: #38bdf8 !important; }
+
+        /* Custom Scrollbar */
+        #logConsole::-webkit-scrollbar { width: 4px; }
+        #logConsole::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 4px; }
+        
+        /* Fixed Italic Clipping */
+        .italic-fix { padding-right: 20px; margin-right: -20px; display: inline-block; line-height: 1.1; }
+    </style>
+</head>
+<body class="p-6 md:p-12">
+
+    <header class="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div>
+            <h1 class="text-4xl font-black italic uppercase tracking-tighter">HYDRO<span class="gradient-text">SMART.</span></h1>
+            <p class="text-gray-500 text-[10px] font-bold uppercase tracking-[0.3em]">By: Qadli Raissa Dzaky | IDN Pamijahan</p>
+        </div>
+        <div class="flex gap-4">
+            <button id="btnConnectBle" class="px-8 py-3 bg-blue-600 hover:bg-blue-500 rounded-full text-[10px] font-black uppercase tracking-widest transition-all blue-glow">
+                Connect Micro:bit
+            </button>
+            <button id="btnConnectDb" class="px-8 py-3 bg-purple-600 hover:bg-purple-500 rounded-full text-[10px] font-black uppercase tracking-widest transition-all purple-glow">
+                Sync Database
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto grid lg:grid-cols-12 gap-8">
+        
+        <div class="lg:col-span-4 space-y-6">
+            <div class="glass p-8 rounded-[2.5rem]">
+                <h3 class="text-[10px] font-black text-gray-500 uppercase mb-6 tracking-widest"><i class="fas fa-database mr-2 text-purple-500"></i> Firebase Config</h3>
+                <div class="space-y-4">
+                    <input type="password" id="apiKey" class="w-full p-4 rounded-2xl text-xs" placeholder="API Key">
+                    <input type="text" id="dbUrl" class="w-full p-4 rounded-2xl text-xs" placeholder="Database URL">
+                    <input type="text" id="nodePath" class="w-full p-4 rounded-2xl text-xs" value="hydro/monitor">
+                </div>
+            </div>
+
+            <div class="glass p-8 rounded-[2.5rem] border border-blue-500/30">
+                <h3 class="text-[10px] font-black text-blue-400 uppercase mb-6 tracking-widest"><i class="fas fa-robot mr-2"></i> Pump Automation</h3>
+                <div class="space-y-6">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold uppercase tracking-tight">Auto-Mode</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="autoPump" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-gray-500 uppercase font-bold tracking-widest">Max Threshold (PPM)</label>
+                        <input type="number" id="threshold" class="w-full p-4 mt-2 rounded-2xl text-xs" value="800">
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass rounded-[2.5rem] overflow-hidden flex flex-col h-56">
+                <div class="bg-white/5 p-4 flex justify-between items-center border-b border-white/5">
+                    <span class="text-[9px] font-black text-gray-400 uppercase tracking-widest">System Log</span>
+                    <button onclick="document.getElementById('logConsole').innerHTML=''"><i class="fas fa-trash text-[10px] text-gray-600 hover:text-white transition"></i></button>
+                </div>
+                <div id="logConsole" class="p-5 overflow-y-auto font-mono text-[9px] text-gray-400 space-y-2"></div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-8 space-y-6">
+            <div class="glass p-10 rounded-[3rem] purple-glow relative">
+                <h3 class="text-xs font-black text-blue-400 uppercase tracking-widest mb-4">Total Dissolved Solids</h3>
+                <div class="flex items-baseline gap-4">
+                    <span id="tdsValue" class="text-8xl font-black italic tracking-tighter gradient-text italic-fix">0</span>
+                    <span class="text-xl font-bold text-gray-600 uppercase tracking-tighter">PPM</span>
+                </div>
+                <div class="mt-8 h-40">
+                    <canvas id="tdsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="glass p-10 rounded-[2.5rem] flex flex-col items-center justify-center gap-6 text-center">
+                    <div id="pumpIcon" class="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center text-3xl transition-all duration-500">
+                        <i class="fas fa-droplet text-gray-600"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">Water Pump Status</h4>
+                        <p id="pumpStatus" class="text-lg font-black mt-1 uppercase italic tracking-tighter">Stopped</p>
+                    </div>
+                    <button onclick="manualPump()" class="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
+                        Toggle Manual
+                    </button>
+                </div>
+
+                <div class="glass p-10 rounded-[2.5rem] flex flex-col justify-center">
+                    <h4 class="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em] mb-4 text-center">TDS Reference</h4>
+                    <div class="space-y-3">
+                        <div class="flex justify-between text-[10px] font-bold"><span class="text-green-400">Pure Water:</span> <span>0 - 50 PPM</span></div>
+                        <div class="flex justify-between text-[10px] font-bold"><span class="text-yellow-400">Tap Water:</span> <span>100 - 300 PPM</span></div>
+                        <div class="flex justify-between text-[10px] font-bold"><span class="text-rose-400">Nutrients:</span> <span>500 - 1000+ PPM</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp, getApps, deleteApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
+        import { getDatabase, ref, onValue, update } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
+
+        const state = {
+            db: null, path: "", tdsHistory: Array(15).fill(0), chart: null, 
+            device: null, rx: null, pumpOn: false
+        };
+
+        function log(msg, color="text-gray-400") {
+            const time = new Date().toLocaleTimeString();
+            const logEl = document.getElementById('logConsole');
+            logEl.insertAdjacentHTML('afterbegin', `<div class="pb-1 border-b border-white/5 ${color}">[${time}] ${msg}</div>`);
+        }
+
+        // Bluetooth Logic
+        async function connectBLE() {
+            try {
+                log("Scanning for Micro:bit...", "text-blue-400");
+                state.device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: "BBC micro:bit" }],
+                    optionalServices: ["6e400001-b5a3-f393-e0a9-e50e24dcca9e"]
+                });
+                
+                const server = await state.device.gatt.connect();
+                const service = await server.getPrimaryService("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
+                const tx = await service.getCharacteristic("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
+                state.rx = await service.getCharacteristic("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
+
+                await tx.startNotifications();
+                tx.addEventListener('characteristicvaluechanged', (e) => {
+                    const raw = new TextDecoder().decode(e.target.value);
+                    if(raw.includes(':')) {
+                        const val = parseFloat(raw.split(':')[1]);
+                        updateData(val);
+                    }
+                });
+
+                log("BLE Connected!", "text-blue-400");
+                document.getElementById('btnConnectBle').innerText = "Connected";
+            } catch(e) { log(e.message, "text-rose-400"); }
+        }
+
+        // Logic Update
+        function updateData(val) {
+            document.getElementById('tdsValue').innerText = val;
+            state.tdsHistory.push(val);
+            state.tdsHistory.shift();
+            state.chart.update();
+
+            if(state.db) {
+                update(ref(state.db, state.path), { tds: val });
+            }
+
+            // Automation
+            const isAuto = document.getElementById('autoPump').checked;
+            const threshold = parseFloat(document.getElementById('threshold').value);
+            if(isAuto) {
+                if(val > threshold && !state.pumpOn) setPump(true);
+                else if(val <= threshold && state.pumpOn) setPump(false);
+            }
+        }
+
+        async function setPump(status) {
+            state.pumpOn = status;
+            const cmd = `pompa,${status ? 1 : 0}\n`;
+            
+            try {
+                if(state.rx) await state.rx.writeValue(new TextEncoder().encode(cmd));
+                
+                document.getElementById('pumpStatus').innerText = status ? "Running" : "Stopped";
+                document.getElementById('pumpStatus').className = status ? "text-lg font-black mt-1 uppercase italic tracking-tighter text-blue-400" : "text-lg font-black mt-1 uppercase italic tracking-tighter text-white";
+                document.getElementById('pumpIcon').className = status ? "w-20 h-20 rounded-full bg-blue-600/20 flex items-center justify-center text-3xl animate-pulse blue-glow" : "w-20 h-20 rounded-full bg-white/5 flex items-center justify-center text-3xl";
+                document.getElementById('pumpIcon').querySelector('i').className = status ? "fas fa-tint text-blue-400" : "fas fa-droplet text-gray-600";
+                
+                log(`Pump command: ${status ? 'ON' : 'OFF'}`, status ? "text-blue-400" : "text-gray-500");
+            } catch(e) { log("TX Error: " + e.message, "text-rose-400"); }
+        }
+
+        window.manualPump = () => setPump(!state.pumpOn);
+
+        // Firebase Init
+        document.getElementById('btnConnectDb').onclick = async () => {
+            const config = {
+                apiKey: document.getElementById('apiKey').value.trim(),
+                databaseURL: document.getElementById('dbUrl').value.trim(),
+                projectId: document.getElementById('dbUrl').value.split('//')[1]?.split('.')[0]
+            };
+            
+            try {
+                if (getApps().length > 0) await deleteApp(getApps()[0]);
+                const app = initializeApp(config);
+                state.db = getDatabase(app);
+                state.path = document.getElementById('nodePath').value;
+                log("DB Linked: " + state.path, "text-purple-400");
+                document.getElementById('btnConnectDb').innerText = "Synced";
+            } catch(e) { log(e.message, "text-rose-400"); }
+        };
+
+        // Chart Setup
+        const ctx = document.getElementById('tdsChart').getContext('2d');
+        const grad = ctx.createLinearGradient(0, 0, 0, 150);
+        grad.addColorStop(0, 'rgba(56, 189, 248, 0.3)');
+        grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+
+        state.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(15).fill(''),
+                datasets: [{
+                    data: state.tdsHistory,
+                    borderColor: '#38bdf8',
+                    borderWidth: 3,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    fill: true,
+                    backgroundColor: grad
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { legend: { display: false } }, 
+                scales: { 
+                    x: { display: false }, 
+                    y: { 
+                        grid: { color: 'rgba(255,255,255,0.03)' }, 
+                        ticks: { color: '#444', font: { weight: '800' } } 
+                    } 
+                } 
+            }
+        });
+
+        document.getElementById('btnConnectBle').onclick = connectBLE;
+    </script>
+</body>
+</html>
